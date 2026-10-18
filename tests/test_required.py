@@ -54,7 +54,16 @@ class RequiredTests(CashbookCase):
                          ("2026-10-18", "expense", "food", 15000))
         self.assertEqual(result.stdout.count("날짜(YYYY-MM-DD):"), 2)
         self.assertEqual(result.stdout.count("타입(income/expense):"), 3)
+        self.assertEqual(result.stdout.count("카테고리(food/transport/rent/salary/etc):"), 2)
         self.assertIn("같은 항목을 다시 입력", result.stderr)
+
+    def test_category_prompt_uses_current_registered_names(self) -> None:
+        self.service.category_add("book")
+        self.service.category_remove("etc")
+        result = self.cli("add", text="2026-10-18\nexpense\nbook\n1000\n독서\n\n")
+        self.assertIn("카테고리(food/transport/rent/salary/book):", result.stdout)
+        self.assertNotIn("/etc", result.stdout)
+        self.assertEqual(list(self.service.transactions.iter_transactions())[0].category, "book")
 
     def test_add_eof_or_cancel_during_retry_preserves_transactions(self) -> None:
         from budget_app.cli import main

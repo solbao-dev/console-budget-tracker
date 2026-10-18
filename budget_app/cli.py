@@ -82,14 +82,13 @@ def prompt_validated(prompt: str, validate: Callable[[str], InputValue]) -> Inpu
 
 def input_category(names: list[str]) -> str:
     # 파일 읽기는 재입력 루프 밖에서 수행한다. 파일 손상을 입력 오류로 오해하지 않는다.
-    print("등록 카테고리: " + ", ".join(names))
 
     def validate(value: str) -> str:
         if value not in names:
             raise AppError("등록된 카테고리 이름을 입력하세요.")
         return value
 
-    return prompt_validated("카테고리: ", validate)
+    return prompt_validated("카테고리(" + "/".join(names) + "): ", validate)
 
 
 def input_transaction(names: list[str]) -> Transaction:

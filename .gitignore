@@ -1,0 +1,34 @@
+# Only publish the application, tests, sample CSV, and README.
+/*
+!/.gitignore
+!/README.md
+!/budget_app/
+!/tests/
+!/examples/
+
+__pycache__/
+*.pyc
+/data/
+/demo_data*/
+/backups/
+/demo_export.csv
+
+# Original assignment materials and personal study files (local only)
+/assignment/
+/study/
+/docs/learning_path.md
+/docs/python_basics_in_this_project.md
+/docs/code_walkthrough.md
+/docs/bonus_walkthrough.md
+
+# Local Python environments
+.venv/
+venv/
+*.pyo
+
+# Credentials and generated backup archives
+.env
+.env.*
+*.pem
+*.key
+*.zip

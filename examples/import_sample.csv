@@ -1,0 +1,5 @@
+date,type,category,amount,memo,tags
+2026-10-01,income,salary,100000,용돈,정기
+2026-10-02,expense,food,15000,"점심, 친구","식사,친구"
+2026-10-03,expense,food,5000,간식,식사
+2026-10-04,expense,transport,3000,버스,교통

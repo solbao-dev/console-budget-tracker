@@ -3,7 +3,7 @@ import argparse
 from itertools import islice
 from pathlib import Path
 
-from .decorators import handle_errors
+from .decorators import handle_errors, log_execution
 from .backup import create_backup
 from .exchange import export_csv, import_csv
 from .formatting import print_transactions
@@ -84,6 +84,7 @@ def input_rule() -> RecurringRule:
     return RecurringRule(type=kind, category=category, amount=amount, day=day, memo=memo, tags=tags)
 
 
+@log_execution
 @handle_errors
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)

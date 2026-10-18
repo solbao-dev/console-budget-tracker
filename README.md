@@ -43,6 +43,24 @@ python -m budget_app --data-dir ./demo_data summary --month 2026-10
 
 잘못된 입력은 원인+힌트를 출력하고 종료 코드 1을 반환합니다. 성공은 0, argparse의 `--help` 정상 종료도 0입니다. PowerShell에서는 실행 직후 `$LASTEXITCODE`로 확인합니다. 사용자 입력 취소/EOF도 실패 처리합니다. 예상 밖 프로그래밍 오류까지 숨기는 포괄적인 except는 사용하지 않았습니다.
 
+## 공통 기능을 분리한 데코레이터
+
+`decorators.py`에 실행 기록과 오류 처리를 별도 함수로 구현하고 `cli.py`의 `main`에 적용했습니다.
+
+```python
+@log_execution
+@handle_errors
+def main(argv: list[str] | None = None) -> int:
+    ...
+```
+
+- `log_execution`: 명령 실행의 시작과 종료 코드(성공 0 / 실패 1)를 stderr에 기록합니다. 입력 인자나 거래 메모는 로그에 남기지 않습니다.
+- `handle_errors`: 예상 가능한 입력·파일 오류를 원인과 해결 힌트로 안내하고 실패 코드 1을 반환합니다.
+
+실행 순서는 `실행 시작 기록 → 오류 처리로 감싼 main → 종료 결과 기록`입니다. 오류 안내 형식과 실행 기록을 독립적으로 바꿀 수 있도록 책임을 분리했습니다. `--help`의 정상 종료와 예상 밖 오류도 원래 동작을 유지합니다. 거래 목록 등 결과는 stdout에, 실행 기록과 오류 안내는 stderr에 출력합니다. 실행 기록은 파일로 영구 저장하지 않습니다.
+
+예: `python -m budget_app --help` 실행 시 도움말과 함께 `[실행] main 시작`, `[실행] main 종료 (종료 코드: 0)`이 표시됩니다.
+
 ## 파일 구조와 책임
 
 | 파일 | 책임 |
@@ -53,7 +71,7 @@ python -m budget_app --data-dir ./demo_data summary --month 2026-10
 | `service.py` | BudgetService의 CRUD/검색/요약/카테고리 사용 규칙 |
 | `repository.py` | TransactionRepository/CategoryStore/BudgetStore, JSONL I/O, 병합과 교체 |
 | `exchange.py` | CSV import/export, UTF-8·헤더·인용 규칙 |
-| `decorators.py` | 실제 main을 감싸는 공통 오류 처리와 wraps |
+| `decorators.py` | main에 적용하는 실행 기록·오류 처리 데코레이터와 wraps |
 | `backup.py` / `formatting.py` / `recurring.py` | 보너스 전용 처리 |
 | `tests/` | tempfile·unittest·subprocess·실패 주입 검증 |
 
@@ -148,7 +166,7 @@ python -m unittest tests.test_bonus -v
 python -m unittest discover -s tests -v
 ```
 
-2026-10-18 Windows / Python 3.14.5에서 **필수 10개 + 보너스 5개, 총 15개 테스트가 통과**했습니다. 임시 폴더와 별도 CLI 프로세스로 영속성·오류 종료·CSV 교환·백업·반복 생성·실패 시 원본 보존을 검증합니다. CSV 10건 중 마지막 1건에 오류가 있으면 전체가 반영되지 않는 추가 검증도 통과했습니다.
+2026-10-18 Windows / Python 3.14.5에서 **필수 10개 + 보너스 5개 + 데코레이터 3개, 총 18개 테스트가 통과**했습니다. 임시 폴더와 별도 CLI 프로세스로 영속성·오류 종료·CSV 교환·백업·반복 생성·실패 시 원본 보존을 검증합니다. CSV 10건 중 마지막 1건에 오류가 있으면 전체가 반영되지 않는 검증도 통과했습니다. 실행 기록의 인자·반환값·함수 정보 보존과 정상/오류 종료도 확인합니다.
 
 조회는 파일 순서로 읽어 list N개에서 중단 가능하지만 검색/요약은 최악 O(n)입니다. 추가/수정/삭제는 전체 순회·재작성 O(n), 수정은 찾기와 재작성 두 번입니다. import는 입력 m건을 메모리에 보관·정렬(O(m log m))하고 기존 n건과 병합합니다. 요약은 카테고리별 합계를 보관합니다. 반복 생성은 활성 규칙과 해당 월 중복 규칙 id를 보관합니다. 10만 건 실측은 미실행입니다. 월별 파일 분할·일괄 쓰기·인덱스가 개선 후보이며 제너레이터만으로 모든 메모리/디스크 문제가 해결되지는 않습니다.
 

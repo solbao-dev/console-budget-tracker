@@ -1,13 +1,15 @@
 """사용자 입력, 옵션 해석, 결과 출력."""
 import argparse
+import sys
 from itertools import islice
 from pathlib import Path
+from typing import Callable, TypeVar
 
 from .decorators import handle_errors, log_execution, measure_time
 from .backup import create_backup
 from .exchange import export_csv, import_csv
 from .formatting import print_transactions
-from .models import AppError, Transaction, parse_tags, positive_int
+from .models import AppError, Transaction, parse_tags, positive_int, valid_date, valid_type
 from .recurring import RecurringRule, RecurringService
 from .service import BudgetService
 
@@ -64,21 +66,54 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def input_transaction() -> Transaction:
-    day = input("날짜(YYYY-MM-DD): ").strip()
-    kind = input("타입(income/expense): ").strip()
-    category = input("카테고리: ").strip()
-    amount = positive_int(input("금액(양수 정수): "))
+InputValue = TypeVar("InputValue")
+
+
+def prompt_validated(prompt: str, validate: Callable[[str], InputValue]) -> InputValue:
+    """입력값 검증에 실패한 항목만 다시 묻는다. EOF와 취소는 상위로 전달한다."""
+    while True:
+        value = input(prompt).strip()
+        try:
+            return validate(value)
+        except AppError as error:
+            print(f"[오류] {error}", file=sys.stderr)
+            print("[힌트] 같은 항목을 다시 입력하세요. 취소하려면 Ctrl+C를 누르세요.", file=sys.stderr)
+
+
+def input_category(names: list[str]) -> str:
+    # 파일 읽기는 재입력 루프 밖에서 수행한다. 파일 손상을 입력 오류로 오해하지 않는다.
+    print("등록 카테고리: " + ", ".join(names))
+
+    def validate(value: str) -> str:
+        if value not in names:
+            raise AppError("등록된 카테고리 이름을 입력하세요.")
+        return value
+
+    return prompt_validated("카테고리: ", validate)
+
+
+def input_transaction(names: list[str]) -> Transaction:
+    day = prompt_validated("날짜(YYYY-MM-DD): ", valid_date)
+    kind = prompt_validated("타입(income/expense): ", valid_type)
+    category = input_category(names)
+    amount = prompt_validated("금액(양수 정수): ", positive_int)
     memo = input("메모(선택): ")
     tags = parse_tags(input("태그(쉼표 구분): "))
     return Transaction(date=day, type=kind, category=category, amount=amount, memo=memo, tags=tags)
 
 
-def input_rule() -> RecurringRule:
-    kind = input("타입(income/expense): ").strip()
-    category = input("카테고리: ").strip()
-    amount = positive_int(input("금액: "))
-    day = positive_int(input("매월 일자(1~31): "))
+def input_rule(names: list[str]) -> RecurringRule:
+    kind = prompt_validated("타입(income/expense): ", valid_type)
+    category = input_category(names)
+    amount = prompt_validated("금액: ", positive_int)
+
+    def validate_day(value: str) -> int:
+        day = positive_int(value)
+        if day > 31:
+            raise AppError("반복 일자는 1~31 정수여야 합니다.")
+        return day
+
+    day = prompt_validated("매월 일자(1~31): ", validate_day)
     memo = input("메모: ")
     tags = parse_tags(input("태그(쉼표 구분): "))
     return RecurringRule(type=kind, category=category, amount=amount, day=day, memo=memo, tags=tags)
@@ -92,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
     service = BudgetService(args.data_dir)
     command = args.command
     if command == "add":
-        print(f"[저장 완료] id={service.add(input_transaction())}")
+        print(f"[저장 완료] id={service.add(input_transaction(service.categories.load()))}")
     elif command == "list":
         print_transactions(islice(service.transactions.iter_transactions(), positive_int(args.limit)))
     elif command == "search":
@@ -150,7 +185,7 @@ def main(argv: list[str] | None = None) -> int:
     elif command == "recurring":
         recurring = RecurringService(service)
         if args.action == "add":
-            print(f"[저장 완료] rule_id={recurring.add(input_rule())}")
+            print(f"[저장 완료] rule_id={recurring.add(input_rule(service.categories.load()))}")
         elif args.action == "list":
             rules = recurring.store.load()
             if not rules:

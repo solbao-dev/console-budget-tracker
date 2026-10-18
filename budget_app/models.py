@@ -40,6 +40,12 @@ def positive_int(value: object) -> int:
     raise AppError("금액/개수는 0보다 큰 정수여야 합니다 (bool, 소수 불가).")
 
 
+def valid_type(value: str) -> str:
+    if value not in ("income", "expense"):
+        raise AppError("type은 income 또는 expense여야 합니다.")
+    return value
+
+
 def category_name(value: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise AppError("카테고리 이름은 비어 있을 수 없습니다.")
@@ -66,8 +72,7 @@ class Transaction:
 
     def __post_init__(self) -> None:
         valid_date(self.date)
-        if self.type not in ("income", "expense"):
-            raise AppError("type은 income 또는 expense여야 합니다.")
+        valid_type(self.type)
         if type(self.amount) is not int:
             raise AppError("저장 금액은 정수여야 합니다.")
         positive_int(self.amount)

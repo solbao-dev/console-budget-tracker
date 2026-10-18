@@ -12,6 +12,15 @@ from tests.test_required import CashbookCase
 
 
 class BonusTests(CashbookCase):
+    def test_recurring_input_retries_before_saving_rule(self) -> None:
+        result = self.cli("recurring", "add", text=(
+            "\nexpense\nmissing\nrent\n0\n50000\n32\n31\n월세\n고정\n"
+        ))
+        rules = RecurringService(self.service).store.load()
+        self.assertEqual(len(rules), 1)
+        self.assertEqual((rules[0].amount, rules[0].day), (50000, 31))
+        self.assertEqual(result.stdout.count("매월 일자(1~31):"), 2)
+
     def test_bonus_help_and_recurring_cli_persistence(self) -> None:
         for path in (["backup"], ["recurring"], ["recurring", "add"], ["recurring", "list"],
                      ["recurring", "remove"], ["recurring", "generate"]):

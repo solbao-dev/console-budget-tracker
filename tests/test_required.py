@@ -43,6 +43,31 @@ class CashbookCase(unittest.TestCase):
 
 
 class RequiredTests(CashbookCase):
+    def test_add_retries_each_invalid_field_and_saves_once(self) -> None:
+        result = self.cli("add", text=(
+            "2026-02-30\n2026-10-18\n\nwrong\nexpense\nmissing\nfood\n"
+            "0\n-1\n1.5\n15000\n점심\n식사\n"
+        ))
+        rows = list(self.service.transactions.iter_transactions())
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0].date, rows[0].type, rows[0].category, rows[0].amount),
+                         ("2026-10-18", "expense", "food", 15000))
+        self.assertEqual(result.stdout.count("날짜(YYYY-MM-DD):"), 2)
+        self.assertEqual(result.stdout.count("타입(income/expense):"), 3)
+        self.assertIn("같은 항목을 다시 입력", result.stderr)
+
+    def test_add_eof_or_cancel_during_retry_preserves_transactions(self) -> None:
+        from budget_app.cli import main
+
+        self.service.add(self.transaction())
+        before = self.service.transactions.path.read_bytes()
+        self.cli("add", text="2026-10-18\nwrong\n", ok=False)
+        self.assertEqual(before, self.service.transactions.path.read_bytes())
+        with patch("builtins.input", side_effect=["2026-10-18", "wrong", KeyboardInterrupt]):
+            with patch("sys.stderr"), patch("sys.stdout"):
+                self.assertEqual(main(["--data-dir", str(self.service.directory), "add"]), 1)
+        self.assertEqual(before, self.service.transactions.path.read_bytes())
+
     def test_cli_all_commands_and_persistence(self) -> None:
         result = self.cli("add", text="2026-10-02\nexpense\nfood\n15000\n점심\n식사,친구\n")
         transaction_id = result.stdout.split("id=")[-1].strip()

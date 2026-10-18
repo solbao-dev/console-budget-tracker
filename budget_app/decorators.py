@@ -1,7 +1,8 @@
-"""CLI 실행 기록과 사용자용 오류 처리를 각각 분리한다."""
+"""CLI 실행 기록, 시간 측정, 사용자용 오류 처리를 각각 분리한다."""
 import csv
 import sys
 from functools import wraps
+from time import perf_counter
 from typing import Callable
 
 from .models import AppError
@@ -24,6 +25,20 @@ def log_execution(function: Callable[..., int]) -> Callable[..., int]:
             raise
         print(f"[실행] {function.__name__} 종료 (종료 코드: {result})", file=sys.stderr)
         return result
+    return wrapper
+
+
+def measure_time(function: Callable[..., int]) -> Callable[..., int]:
+    """성공/실패와 관계없이 경과 시간을 stderr에 출력한다."""
+    @wraps(function)
+    def wrapper(*args: object, **kwargs: object) -> int:
+        started = perf_counter()
+        try:
+            return function(*args, **kwargs)
+        finally:
+            # return 또는 예외로 함수를 나가더라도 finally는 실행된다.
+            elapsed = perf_counter() - started
+            print(f"[시간] {function.__name__}: {elapsed:.3f}초", file=sys.stderr)
     return wrapper
 
 
